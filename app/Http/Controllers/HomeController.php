@@ -9,8 +9,7 @@ class HomeController extends Controller
 {
     public function show(Request $request)
     {
-        return Inertia::render('Home', [
-            'ip' => $request->ip(),
+        return Inertia::render('ApartmentNews', [
         ]);
     }
 }

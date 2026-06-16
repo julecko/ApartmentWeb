@@ -1,5 +1,54 @@
-$primary-color: #3498db;
-$secondary-color: #2ecc71;
-$accent-color: #e74c3c;
-$text-color: #333;
-$background-color: #f5f5f5;
+// ─── Palette ────────────────────────────────────────────────────────────────
+$color-bg:            #F0EDE8;   // warm off-white canvas
+$color-surface:       #FFFFFF;   // card surface
+$color-surface-pinned:#EBF0F8;   // pinned card — muted blue tint
+$color-border:        #E0DCD6;   // subtle divider
+$color-border-card:   #D8D4CE;   // card outline
+
+$color-text-primary:  #1A1A1A;   // headings
+$color-text-secondary:#6B6560;   // meta, subtitles
+$color-text-muted:    #9C9590;   // dates, labels
+$color-text-link:     #4A6FA5;   // "Čítať viac" / "Read more"
+
+// Badge accent colours
+$color-badge-investice-bg:   #EEF2FA;
+$color-badge-investice-text: #2D5FA0;
+$color-badge-fond-bg:        #EAF4EE;
+$color-badge-fond-text:      #1F7A3A;
+$color-badge-oprava-bg:      #FDF3E8;
+$color-badge-oprava-text:    #C05C10;
+$color-badge-obecne-bg:      #F0EEF8;
+$color-badge-obecne-text:    #5B4BAA;
+
+// ─── Typography ─────────────────────────────────────────────────────────────
+$font-display: 'Playfair Display', Georgia, serif;    // headings — editorial weight
+$font-body:    'Inter', system-ui, sans-serif;        // UI copy, meta, badges
+$font-mono:    'JetBrains Mono', monospace;           // dates / codes
+
+$font-size-xs:   0.6875rem;   // 11px — eyebrows, badges
+$font-size-sm:   0.8125rem;   // 13px — meta / date
+$font-size-base: 0.9375rem;   // 15px — body copy
+$font-size-lg:   1.125rem;    // 18px — card title
+$font-size-xl:   1.375rem;    // 22px — section title
+$font-size-2xl:  2rem;        // 32px — page title
+
+$font-weight-regular: 400;
+$font-weight-medium:  500;
+$font-weight-semibold:600;
+$font-weight-bold:    700;
+
+$line-height-tight:  1.2;
+$line-height-normal: 1.5;
+$line-height-relaxed:1.65;
+
+// ─── Spacing & radius ───────────────────────────────────────────────────────
+$radius-sm:  6px;
+$radius-md:  10px;
+$radius-lg:  14px;
+
+$spacing-xs:  4px;
+$spacing-sm:  8px;
+$spacing-md:  16px;
+$spacing-lg:  24px;
+$spacing-xl:  40px;
+$spacing-2xl: 64px;
