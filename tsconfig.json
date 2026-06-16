@@ -1,0 +1,36 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "useDefineForClassFields": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "sourceMap": true,
+
+        "lib": ["ESNext", "DOM"],
+
+        "types": ["vite/client"],
+
+        "jsx": "preserve",
+        "paths": {
+            "$components/*": ["./resources/js/components/*"],
+            "$layouts/*": ["./resources/js/layouts/*"],
+            "$lib/*": ["./resources/js/lib/*"],
+            "$stores/*": ["./resources/js/stores/*"],
+            "$types/*": ["./resources/js/types/*"],
+            "$styles/*": ["./resources/css/*"],
+            "$pages/*": ["./resources/js/pages/*"]
+        }
+    },
+
+    "include": [
+        "resources/js/**/*.ts",
+        "resources/js/**/*.vue"
+    ],
+
+    "exclude": [
+        "node_modules"
+    ]
+}
