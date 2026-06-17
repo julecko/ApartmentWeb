@@ -1,8 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\AdminController;
 
-Route::get('/', [HomeController::class, 'show']);
-Route::get('/admin', [AdminController::class, 'show']);
+use App\Http\Controllers\NewsController;
+
+Route::get('/', function () {
+    return redirect()->route('news.index');
+});
+
+Route::get('/news', [NewsController::class, 'index'])
+    ->name('news.index');
