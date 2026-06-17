@@ -19,5 +19,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('admin.auth')->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('index');
         Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
+
+        Route::prefix('news')->name('news.')->group(function () {
+
+            Route::post('/', [NewsController::class, 'store'])
+                ->name('store');
+
+            Route::post('/{newsItem}', [NewsController::class, 'update'])
+                ->name('update');
+
+            Route::patch('/{newsItem}/pin', [NewsController::class, 'togglePin'])
+                ->name('pin');
+
+            Route::delete('/{newsItem}', [NewsController::class, 'destroy'])
+                ->name('destroy');
+        });
     });
 });

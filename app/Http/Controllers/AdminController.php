@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use App\Models\AdminAccount;
+use App\Models\NewsItem;
+use App\Http\Resources\NewsItemResource;
 
 class AdminController extends Controller
 {
@@ -62,7 +64,13 @@ class AdminController extends Controller
 
     public function index()
     {
+        $items = NewsItem::with('attachments')
+            ->orderByDesc('pinned')
+            ->orderByDesc('date')
+            ->get();
+
         return Inertia::render('AdminPanel', [
+            'items' => NewsItemResource::collection($items),
         ]);
     }
 

@@ -1,112 +1,148 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import type { NewsItem } from '$types/news';
-import { useI18n } from '$lib/i18n';
-import NewsHeader from '$components/news/NewsHeader.vue';
-import NewsForm from '$components/news/NewsForm.vue';
-import NewsAdminCard from '$components/news/NewsAdminCard.vue';
-import NewsEditModal from '$components/news/NewsEditModal.vue';
+import { ref, computed } from 'vue'
+import type { BadgeType, NewsItem } from '$types/news'
+import { useI18n } from '$lib/i18n'
+import NewsHeader from '$components/news/NewsHeader.vue'
+import NewsForm from '$components/news/NewsForm.vue'
+import NewsAdminCard from '$components/news/NewsAdminCard.vue'
+import NewsEditModal from '$components/news/NewsEditModal.vue'
+import { usePage, router } from '@inertiajs/vue3'
+import { route } from 'ziggy-js'
 
-const { t } = useI18n();
+const { t } = useI18n()
 
-// ── Replace with store/API ───────────────────────────────────────────────────
-const items = ref<NewsItem[]>([
-    {
-        id: 1,
-        badge: 'investment',
-        date: '2026-06-10',
-        pinned: true,
-        titleSk: 'Výmena výťahu — schválené',
-        titleEn: 'Elevator replacement — approved',
-        summarySk: 'Vlastníci odhlasovali financovanie nového výťahu za 1 200 000 Kč.',
-        summaryEn: 'Owners voted to finance a new elevator for 1,200,000 CZK.',
-        contentSk: '',
-        contentEn: '',
-        attachments: [],
-    },
-    {
-        id: 2,
-        badge: 'repairFund',
-        date: '2026-06-05',
-        titleSk: 'Navýšenie príspevku do fondu opráv od júla',
-        titleEn: 'Repair fund contribution increase from July',
-        summarySk: 'Mesačný príspevok do fondu opráv sa od 1. júla zvyšuje o 15 %.',
-        summaryEn: 'The monthly repair fund contribution will increase by 15% from 1 July.',
-        contentSk: '',
-        contentEn: '',
-        attachments: [],
-    },
-    {
-        id: 3,
-        badge: 'repair',
-        date: '2026-05-28',
-        titleSk: 'Oprava strechy — 2. etapa dokončená',
-        titleEn: 'Roof repair — 2nd phase completed',
-        summarySk: 'Druhá etapa rekonštrukcie strechy úspešne dokončená, tretia na jeseň.',
-        summaryEn: 'The second phase of roof reconstruction was completed successfully.',
-        contentSk: '',
-        contentEn: '',
-        attachments: [],
-    },
-    {
-        id: 4,
-        badge: 'general',
-        date: '2026-05-20',
-        titleSk: 'Schôdza vlastníkov — 25. júna 2026',
-        titleEn: 'Owners\' meeting — 25 June 2026',
-        summarySk: 'Schôdza sa koná 25. júna od 18:00 v prízemí domu.',
-        summaryEn: 'The meeting takes place on 25 June at 18:00 on the ground floor.',
-        contentSk: '',
-        contentEn: '',
-        attachments: [],
-    },
-]);
+type PageProps = {
+    items: {
+        data: NewsItem[]
+    }
+}
 
-let nextId = items.value.length + 1;
+type CreatePayload = {
+    badge: BadgeType
+    date: string
+    titleSk: string
+    titleEn: string
+    summarySk: string
+    summaryEn: string
+    contentSk: string
+    contentEn: string
+    pinned: boolean
+    files: File[]
+}
 
-// ── Add form ─────────────────────────────────────────────────────────────────
-const showForm = ref(false);
+type EditPayload = {
+    id: number
+    badge: BadgeType
+    date: string
+    titleSk: string
+    titleEn: string
+    summarySk: string
+    summaryEn: string
+    contentSk: string
+    contentEn: string
+    pinned: boolean
+    newFiles: File[]
+    deleteAttachmentIds: number[]
+}
 
-function handleSubmit(data: Omit<NewsItem, 'id'>) {
-    items.value.unshift({ ...data, id: nextId++ });
-    showForm.value = false;
+const page = usePage<PageProps>()
+const items = computed(() => page.props.items.data)
+
+const showForm = ref(false)
+const editingItem = ref<NewsItem | null>(null)
+
+function handleSubmit(data: CreatePayload) {
+    const formData = new FormData()
+
+    formData.append('titleSk', data.titleSk)
+    formData.append('titleEn', data.titleEn)
+    formData.append('summarySk', data.summarySk)
+    formData.append('summaryEn', data.summaryEn)
+    formData.append('contentSk', data.contentSk ?? '')
+    formData.append('contentEn', data.contentEn ?? '')
+    formData.append('badge', data.badge)
+    formData.append('date', data.date)
+    formData.append('pinned', data.pinned ? '1' : '0')
+
+    data.files.forEach((file: File) => {
+        formData.append('attachments[]', file)
+    })
+
+    router.post(route('admin.news.store'), formData, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['items'] })
+            showForm.value = false
+        },
+    })
 }
 
 function handleCancel() {
-    showForm.value = false;
+    showForm.value = false
 }
-
-// ── Edit modal ────────────────────────────────────────────────────────────────
-const editingItem = ref<NewsItem | null>(null);
 
 function handleEdit(id: number) {
-    editingItem.value = items.value.find(i => i.id === id) ?? null;
+    editingItem.value = items.value.find(i => i.id === id) ?? null
 }
 
-function handleSave(updated: NewsItem) {
-    const idx = items.value.findIndex(i => i.id === updated.id);
-    if (idx !== -1) items.value[idx] = updated;
-    editingItem.value = null;
+function handleSave(data: EditPayload) {
+    const formData = new FormData()
+
+    formData.append('titleSk', data.titleSk)
+    formData.append('titleEn', data.titleEn)
+    formData.append('summarySk', data.summarySk)
+    formData.append('summaryEn', data.summaryEn)
+    formData.append('contentSk', data.contentSk ?? '')
+    formData.append('contentEn', data.contentEn ?? '')
+    formData.append('badge', data.badge)
+    formData.append('date', data.date)
+    formData.append('pinned', data.pinned ? '1' : '0')
+
+    data.newFiles.forEach((file: File) => {
+        formData.append('attachments[]', file)
+    })
+
+    data.deleteAttachmentIds.forEach((id: number) => {
+        formData.append('deleteAttachmentIds[]', String(id))
+    })
+
+    router.post(route('admin.news.update', data.id), formData, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['items'] })
+            editingItem.value = null
+        },
+    })
 }
 
-// ── Pin / delete ──────────────────────────────────────────────────────────────
 function handlePin(id: number) {
-    const item = items.value.find(i => i.id === id);
-    if (item) item.pinned = !item.pinned;
+    router.patch(route('admin.news.pin', id), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['items'] })
+        },
+    })
 }
 
 function handleDelete(id: number) {
-    items.value = items.value.filter(i => i.id !== id);
+    router.delete(route('admin.news.destroy', id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['items'] })
+        },
+    })
 }
 
 function handleLogout() {
-    // implement logout logic
+    router.post(route('admin.logout'))
 }
 
 const sorted = computed(() => [
     ...items.value.filter(i => i.pinned),
     ...items.value.filter(i => !i.pinned),
-]);
+])
 </script>
 
 <template>
@@ -145,80 +181,80 @@ const sorted = computed(() => [
 </template>
 
 <style scoped lang="scss">
-@use '$styles/colors' as *;
+    @use '$styles/colors' as *;
 
-.admin-page {
-    max-width: 820px;
-    margin: 0 auto;
+    .admin-page {
+        max-width: 820px;
+        margin: 0 auto;
 
-    &__divider {
-        height: 1px;
-        background: $color-border;
-        margin: 0 $spacing-xl;
+        &__divider {
+            height: 1px;
+            background: $color-border;
+            margin: 0 $spacing-xl;
+        }
+
+        &__content {
+            padding: $spacing-xl;
+            display: flex;
+            flex-direction: column;
+            gap: $spacing-md;
+        }
+
+        &__form-wrap {
+            overflow: hidden;
+        }
+
+        &__list {
+            display: flex;
+            flex-direction: column;
+            gap: $spacing-sm;
+        }
+
+        &__empty {
+            font-size: $font-size-sm;
+            color: $color-text-muted;
+            text-align: center;
+            padding: $spacing-xl;
+        }
     }
 
-    &__content {
-        padding: $spacing-xl;
+    .add-btn {
         display: flex;
-        flex-direction: column;
-        gap: $spacing-md;
-    }
-
-    &__form-wrap {
-        overflow: hidden;
-    }
-
-    &__list {
-        display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         gap: $spacing-sm;
-    }
-
-    &__empty {
+        width: 100%;
+        padding: 14px;
+        background: transparent;
+        border: 2px dashed $color-text-link;
+        border-radius: $radius-md;
+        font-family: $font-body;
         font-size: $font-size-sm;
-        color: $color-text-muted;
-        text-align: center;
-        padding: $spacing-xl;
-    }
-}
+        font-weight: $font-weight-semibold;
+        color: $color-text-link;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
 
-.add-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: $spacing-sm;
-    width: 100%;
-    padding: 14px;
-    background: transparent;
-    border: 2px dashed $color-text-link;
-    border-radius: $radius-md;
-    font-family: $font-body;
-    font-size: $font-size-sm;
-    font-weight: $font-weight-semibold;
-    color: $color-text-link;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+        &:hover {
+            background: rgba(74, 111, 165, 0.05);
+            border-color: darken(#4A6FA5, 10%);
+        }
 
-    &:hover {
-        background: rgba(74, 111, 165, 0.05);
-        border-color: darken(#4A6FA5, 10%);
+        &:focus-visible {
+            outline: 2px solid $color-text-link;
+            outline-offset: 2px;
+        }
     }
 
-    &:focus-visible {
-        outline: 2px solid $color-text-link;
-        outline-offset: 2px;
+    .expand-enter-active,
+    .expand-leave-active {
+        transition: max-height 0.28s ease, opacity 0.2s ease;
+        max-height: 900px;
     }
-}
 
-.expand-enter-active,
-.expand-leave-active {
-    transition: max-height 0.28s ease, opacity 0.2s ease;
-    max-height: 900px;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-    max-height: 0;
-    opacity: 0;
-}
+    .expand-enter-from,
+    .expand-leave-to {
+        max-height: 0;
+        opacity: 0;
+    }
 </style>

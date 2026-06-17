@@ -1,7 +1,9 @@
 import '../css/app.scss';
 import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { createPinia } from 'pinia';
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 
 createInertiaApp({
     resolve: (name: string) => {
@@ -19,9 +21,19 @@ createInertiaApp({
     },
 
     setup({ el, App, props, plugin }) {
+        const pinia = createPinia();
+
+        router.on('start', () => {
+            NProgress.start();
+        });
+
+        router.on('finish', () => {
+            NProgress.done();
+        });
+
         createApp({ render: () => h(App, props) })
             .use(plugin)
-            .use(createPinia())
+            .use(pinia)
             .mount(el);
     },
 });

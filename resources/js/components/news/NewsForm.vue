@@ -3,14 +3,21 @@ import { ref, reactive } from 'vue';
 import type { BadgeType, NewsItem, NewsAttachment } from '$types/news';
 import { useI18n } from '$lib/i18n';
 
+type SubmitPayload = Omit<NewsItem, 'id'> & {
+    files: File[];
+    attachments: NewsAttachment[];
+};
+
 const emit = defineEmits<{
-    submit: [item: Omit<NewsItem, 'id'>];
+    submit: [item: SubmitPayload];
     cancel: [];
 }>();
 
 const { t } = useI18n();
 
 const BADGE_OPTIONS: BadgeType[] = ['investment', 'repairFund', 'repair', 'general'];
+
+const files = ref<File[]>([]);
 
 const form = reactive({
     titleSk: '',
@@ -28,9 +35,12 @@ const dragOver = ref(false);
 const attachments = ref<NewsAttachment[]>([]);
 let nextId = 1;
 
-function handleFiles(files: FileList | null) {
-    if (!files) return;
-    for (const file of Array.from(files)) {
+function handleFiles(fileList: FileList | null) {
+    if (!fileList) return;
+
+    for (const file of Array.from(fileList)) {
+        files.value.push(file);
+
         attachments.value.push({
             id: nextId++,
             name: file.name,
@@ -60,6 +70,7 @@ function handleSubmit() {
     emit('submit', {
         ...form,
         attachments: attachments.value,
+        files: files.value,
     });
     resetForm();
 }

@@ -18,6 +18,6 @@ export interface NewsItem {
     summaryEn: string;
     contentSk: string;
     contentEn: string;
-    pinned?: boolean;
+    pinned: boolean;
     attachments?: NewsAttachment[];
 }

@@ -1,65 +1,167 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from 'vue';
-import type { BadgeType, NewsItem, NewsAttachment } from '$types/news';
-import { useI18n } from '$lib/i18n';
-import NewsBadge from './NewsBadge.vue';
+    import { reactive, watch, ref } from 'vue'
+    import type { BadgeType, NewsItem, NewsAttachment } from '$types/news'
+    import { useI18n } from '$lib/i18n'
 
-const props = defineProps<{ item: NewsItem }>();
-const emit = defineEmits<{
-    save: [item: NewsItem];
-    close: [];
-}>();
-
-const { t } = useI18n();
-
-const BADGE_OPTIONS: BadgeType[] = ['investment', 'repairFund', 'repair', 'general'];
-
-const form = reactive({ ...props.item });
-
-// Keep form in sync if parent swaps the item
-watch(() => props.item, (val) => Object.assign(form, val), { deep: true });
-
-// Attachments
-const attachments = ref<NewsAttachment[]>([...(props.item.attachments ?? [])]);
-watch(() => props.item.attachments, (val) => { attachments.value = [...(val ?? [])]; });
-
-const dragOver = ref(false);
-let nextId = Math.max(0, ...(props.item.attachments?.map(a => a.id) ?? [0])) + 1;
-
-function handleFiles(files: FileList | null) {
-    if (!files) return;
-    for (const file of Array.from(files)) {
-        attachments.value.push({
-            id: nextId++, name: file.name, size: file.size,
-            mimeType: file.type, url: URL.createObjectURL(file),
-        });
+    type PendingFile = {
+        id: number
+        file: File
+        name: string
+        size: number
+        mimeType: string
+        url: string
     }
-}
 
-function onDrop(e: DragEvent) {
-    dragOver.value = false;
-    handleFiles(e.dataTransfer?.files ?? null);
-}
-
-function removeAttachment(id: number) {
-    attachments.value = attachments.value.filter(a => a.id !== id);
-}
-
-function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function handleSave() {
-    emit('save', { ...form, attachments: attachments.value });
-}
-
-function onOverlayClick(e: MouseEvent) {
-    if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
-        emit('close');
+    type EditPayload = {
+        id: number
+        badge: BadgeType
+        date: string
+        titleSk: string
+        titleEn: string
+        summarySk: string
+        summaryEn: string
+        contentSk: string
+        contentEn: string
+        pinned: boolean
+        newFiles: File[]
+        deleteAttachmentIds: number[]
     }
-}
+
+    const props = defineProps<{ item: NewsItem }>()
+    const emit = defineEmits<{
+        save: [payload: EditPayload]
+        close: []
+    }>()
+
+    const { t } = useI18n()
+
+    const BADGE_OPTIONS: BadgeType[] = ['investment', 'repairFund', 'repair', 'general']
+
+    type FormState = {
+        id: number
+        badge: BadgeType
+        date: string
+        titleSk: string
+        titleEn: string
+        summarySk: string
+        summaryEn: string
+        contentSk: string
+        contentEn: string
+        pinned: boolean
+    }
+
+    const form = reactive<FormState>({
+        id: props.item.id,
+        badge: props.item.badge,
+        date: props.item.date,
+        titleSk: props.item.titleSk,
+        titleEn: props.item.titleEn,
+        summarySk: props.item.summarySk,
+        summaryEn: props.item.summaryEn,
+        contentSk: props.item.contentSk ?? '',
+        contentEn: props.item.contentEn ?? '',
+        pinned: !!props.item.pinned,
+    })
+
+    const existingAttachments = ref<NewsAttachment[]>([])
+    const newFiles = ref<PendingFile[]>([])
+    const deletedIds = ref<number[]>([])
+    const dragOver = ref(false)
+    const fileInput = ref<HTMLInputElement | null>(null)
+    let nextTempId = 1
+
+    function resetFromItem(val: NewsItem) {
+        form.id = val.id
+        form.badge = val.badge
+        form.date = val.date
+        form.titleSk = val.titleSk
+        form.titleEn = val.titleEn
+        form.summarySk = val.summarySk
+        form.summaryEn = val.summaryEn
+        form.contentSk = val.contentSk ?? ''
+        form.contentEn = val.contentEn ?? ''
+        form.pinned = !!val.pinned
+
+        existingAttachments.value = [...(val.attachments ?? [])]
+        newFiles.value = []
+        deletedIds.value = []
+        nextTempId = 1
+    }
+
+    watch(() => props.item, resetFromItem, { immediate: true, deep: true })
+
+    function handleFiles(fileList: FileList | null) {
+        if (!fileList) return
+
+        for (const file of Array.from(fileList)) {
+            newFiles.value.push({
+                id: nextTempId++,
+                file,
+                name: file.name,
+                size: file.size,
+                mimeType: file.type,
+                url: URL.createObjectURL(file),
+            })
+        }
+
+        if (fileInput.value) {
+            fileInput.value.value = ''
+        }
+    }
+
+    function onDrop(e: DragEvent) {
+        dragOver.value = false
+        handleFiles(e.dataTransfer?.files ?? null)
+    }
+
+    function openFilePicker() {
+        fileInput.value?.click()
+    }
+
+    function removeExistingAttachment(id: number) {
+        if (!deletedIds.value.includes(id)) {
+            deletedIds.value.push(id)
+        }
+
+        existingAttachments.value = existingAttachments.value.filter(a => a.id !== id)
+    }
+
+    function removeNewFile(id: number) {
+        const index = newFiles.value.findIndex(f => f.id === id)
+        if (index === -1) return
+
+        URL.revokeObjectURL(newFiles.value[index].url)
+        newFiles.value.splice(index, 1)
+    }
+
+    function formatSize(bytes: number): string {
+        if (bytes < 1024) return `${bytes} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+
+    function handleSave() {
+        emit('save', {
+            id: form.id,
+            badge: form.badge,
+            date: form.date,
+            titleSk: form.titleSk,
+            titleEn: form.titleEn,
+            summarySk: form.summarySk,
+            summaryEn: form.summaryEn,
+            contentSk: form.contentSk,
+            contentEn: form.contentEn,
+            pinned: form.pinned,
+            newFiles: newFiles.value.map(f => f.file),
+            deleteAttachmentIds: deletedIds.value,
+        })
+    }
+
+    function onOverlayClick(e: MouseEvent) {
+        if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
+            emit('close')
+        }
+    }
 </script>
 
 <template>
@@ -142,15 +244,14 @@ function onOverlayClick(e: MouseEvent) {
                                 :placeholder="t.fieldContentEnPlaceholder" rows="3" />
                         </div>
 
-                        <!-- Attachments -->
                         <div class="form-field form-field--wide">
                             <label class="form-field__label">{{ t.fieldAttachments }}</label>
 
                             <div class="dropzone" :class="{ 'dropzone--over': dragOver }"
                                 @dragover.prevent="dragOver = true" @dragleave="dragOver = false" @drop.prevent="onDrop"
-                                @click="($refs.fileInput as HTMLInputElement).click()">
+                                @click="openFilePicker">
                                 <input ref="fileInput" type="file" multiple class="dropzone__input"
-                                    @change="e => handleFiles((e.target as HTMLInputElement).files)" />
+                                    @change="e => handleFiles((e.target as HTMLInputElement).files)">
                                 <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"
                                     class="dropzone__icon">
                                     <path d="M19 13.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3.5" stroke="currentColor"
@@ -161,11 +262,25 @@ function onOverlayClick(e: MouseEvent) {
                                 <p class="dropzone__text">{{ t.dropzoneText }}</p>
                             </div>
 
-                            <ul v-if="attachments.length" class="upload-list">
-                                <li v-for="file in attachments" :key="file.id" class="upload-list__item">
+                            <ul v-if="existingAttachments.length" class="upload-list">
+                                <li v-for="file in existingAttachments" :key="file.id" class="upload-list__item">
                                     <span class="upload-list__name">{{ file.name }}</span>
                                     <span class="upload-list__size">{{ formatSize(file.size) }}</span>
-                                    <button class="upload-list__remove" @click="removeAttachment(file.id)"
+                                    <button type="button" class="upload-list__remove"
+                                        @click="removeExistingAttachment(file.id)" :aria-label="`Remove ${file.name}`">
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                            <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.5"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <ul v-if="newFiles.length" class="upload-list">
+                                <li v-for="file in newFiles" :key="file.id" class="upload-list__item">
+                                    <span class="upload-list__name">{{ file.name }}</span>
+                                    <span class="upload-list__size">{{ formatSize(file.size) }}</span>
+                                    <button type="button" class="upload-list__remove" @click="removeNewFile(file.id)"
                                         :aria-label="`Remove ${file.name}`">
                                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                                             <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.5"
@@ -200,304 +315,304 @@ function onOverlayClick(e: MouseEvent) {
 </template>
 
 <style scoped lang="scss">
-@use '$styles/colors' as *;
+    @use '$styles/colors' as *;
 
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: $spacing-md;
-}
-
-.modal {
-    background: $color-surface;
-    border: 1px solid $color-border-card;
-    border-radius: $radius-lg;
-    width: 100%;
-    max-width: 660px;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
-
-    &__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: $spacing-lg $spacing-lg $spacing-md;
-        border-bottom: 1px solid $color-border;
-        flex-shrink: 0;
-    }
-
-    &__title {
-        font-family: $font-display;
-        font-size: $font-size-lg;
-        font-weight: $font-weight-bold;
-        color: $color-text-primary;
-    }
-
-    &__close {
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(2px);
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 32px;
-        border: none;
-        background: transparent;
-        color: $color-text-muted;
-        border-radius: $radius-sm;
-        cursor: pointer;
-        transition: background 0.15s, color 0.15s;
+        z-index: 100;
+        padding: $spacing-md;
+    }
 
-        &:hover {
-            background: $color-bg;
+    .modal {
+        background: $color-surface;
+        border: 1px solid $color-border-card;
+        border-radius: $radius-lg;
+        width: 100%;
+        max-width: 660px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+
+        &__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: $spacing-lg $spacing-lg $spacing-md;
+            border-bottom: 1px solid $color-border;
+            flex-shrink: 0;
+        }
+
+        &__title {
+            font-family: $font-display;
+            font-size: $font-size-lg;
+            font-weight: $font-weight-bold;
             color: $color-text-primary;
+        }
+
+        &__close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: $color-text-muted;
+            border-radius: $radius-sm;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+
+            &:hover {
+                background: $color-bg;
+                color: $color-text-primary;
+            }
+        }
+
+        &__body {
+            padding: $spacing-lg;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        &__footer {
+            display: flex;
+            gap: $spacing-sm;
+            padding: $spacing-md $spacing-lg;
+            border-top: 1px solid $color-border;
+            flex-shrink: 0;
         }
     }
 
-    &__body {
-        padding: $spacing-lg;
-        overflow-y: auto;
-        flex: 1;
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: $spacing-md;
+        margin-bottom: $spacing-md;
     }
 
-    &__footer {
+    .form-field {
         display: flex;
-        gap: $spacing-sm;
-        padding: $spacing-md $spacing-lg;
-        border-top: 1px solid $color-border;
-        flex-shrink: 0;
-    }
-}
+        flex-direction: column;
+        gap: 6px;
 
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: $spacing-md;
-    margin-bottom: $spacing-md;
-}
+        &--wide {
+            grid-column: 1 / -1;
+        }
 
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-
-    &--wide {
-        grid-column: 1 / -1;
-    }
-
-    &__label {
-        font-size: $font-size-xs;
-        font-weight: $font-weight-semibold;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: $color-text-muted;
-    }
-
-    &__input,
-    &__textarea,
-    &__select {
-        width: 100%;
-        padding: 9px 12px;
-        border: 1px solid $color-border-card;
-        border-radius: $radius-sm;
-        background: $color-bg;
-        font-family: $font-body;
-        font-size: $font-size-base;
-        color: $color-text-primary;
-        transition: border-color 0.15s;
-        appearance: none;
-
-        &::placeholder {
+        &__label {
+            font-size: $font-size-xs;
+            font-weight: $font-weight-semibold;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
             color: $color-text-muted;
         }
 
-        &:focus {
-            outline: none;
-            border-color: $color-text-link;
-            background: $color-surface;
+        &__input,
+        &__textarea,
+        &__select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid $color-border-card;
+            border-radius: $radius-sm;
+            background: $color-bg;
+            font-family: $font-body;
+            font-size: $font-size-base;
+            color: $color-text-primary;
+            transition: border-color 0.15s;
+            appearance: none;
+
+            &::placeholder {
+                color: $color-text-muted;
+            }
+
+            &:focus {
+                outline: none;
+                border-color: $color-text-link;
+                background: $color-surface;
+            }
+        }
+
+        &__textarea {
+            resize: vertical;
+        }
+
+        &__select-wrap {
+            position: relative;
+        }
+
+        &__select {
+            cursor: pointer;
+            padding-right: 32px;
+        }
+
+        &__select-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: $color-text-muted;
+            pointer-events: none;
         }
     }
 
-    &__textarea {
-        resize: vertical;
-    }
-
-    &__select-wrap {
-        position: relative;
-    }
-
-    &__select {
+    .dropzone {
+        border: 2px dashed $color-border-card;
+        border-radius: $radius-md;
+        padding: $spacing-md $spacing-lg;
+        text-align: center;
         cursor: pointer;
-        padding-right: 32px;
+        transition: border-color 0.15s, background 0.15s;
+        position: relative;
+
+        &--over {
+            border-color: $color-text-link;
+            background: rgba(74, 111, 165, 0.04);
+        }
+
+        &:hover {
+            border-color: $color-text-secondary;
+        }
+
+        &__input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+
+        &__icon {
+            color: $color-text-muted;
+            margin-bottom: 6px;
+        }
+
+        &__text {
+            font-size: $font-size-sm;
+            color: $color-text-secondary;
+        }
     }
 
-    &__select-icon {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: $color-text-muted;
-        pointer-events: none;
-    }
-}
-
-.dropzone {
-    border: 2px dashed $color-border-card;
-    border-radius: $radius-md;
-    padding: $spacing-md $spacing-lg;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    position: relative;
-
-    &--over {
-        border-color: $color-text-link;
-        background: rgba(74, 111, 165, 0.04);
-    }
-
-    &:hover {
-        border-color: $color-text-secondary;
-    }
-
-    &__input {
-        position: absolute;
-        inset: 0;
-        opacity: 0;
-        width: 0;
-        height: 0;
-        pointer-events: none;
-    }
-
-    &__icon {
-        color: $color-text-muted;
-        margin-bottom: 6px;
-    }
-
-    &__text {
-        font-size: $font-size-sm;
-        color: $color-text-secondary;
-    }
-}
-
-.upload-list {
-    list-style: none;
-    margin-top: $spacing-sm;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-
-    &__item {
+    .upload-list {
+        list-style: none;
+        margin-top: $spacing-sm;
         display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        &__item {
+            display: flex;
+            align-items: center;
+            gap: $spacing-sm;
+            padding: 7px 10px;
+            background: $color-bg;
+            border: 1px solid $color-border;
+            border-radius: $radius-sm;
+        }
+
+        &__name {
+            flex: 1;
+            font-size: $font-size-sm;
+            color: $color-text-primary;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        &__size {
+            font-size: $font-size-xs;
+            color: $color-text-muted;
+            flex-shrink: 0;
+        }
+
+        &__remove {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border: none;
+            background: transparent;
+            color: $color-text-muted;
+            border-radius: $radius-sm;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+
+            &:hover {
+                background: #FEE2E2;
+                color: #DC2626;
+            }
+        }
+    }
+
+    .pin-check {
+        display: inline-flex;
         align-items: center;
         gap: $spacing-sm;
-        padding: 7px 10px;
-        background: $color-bg;
-        border: 1px solid $color-border;
-        border-radius: $radius-sm;
-    }
-
-    &__name {
-        flex: 1;
         font-size: $font-size-sm;
-        color: $color-text-primary;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    &__size {
-        font-size: $font-size-xs;
-        color: $color-text-muted;
-        flex-shrink: 0;
-    }
-
-    &__remove {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        border: none;
-        background: transparent;
-        color: $color-text-muted;
-        border-radius: $radius-sm;
-        cursor: pointer;
-        flex-shrink: 0;
-        transition: background 0.15s, color 0.15s;
-
-        &:hover {
-            background: #FEE2E2;
-            color: #DC2626;
-        }
-    }
-}
-
-.pin-check {
-    display: inline-flex;
-    align-items: center;
-    gap: $spacing-sm;
-    font-size: $font-size-sm;
-    color: $color-text-secondary;
-    cursor: pointer;
-    user-select: none;
-
-    &__input {
-        display: none;
-    }
-
-    &__box {
-        width: 18px;
-        height: 18px;
-        border: 2px solid $color-border-card;
-        border-radius: 4px;
-        background: $color-bg;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        transition: background 0.15s, border-color 0.15s;
-    }
-}
-
-.pin-check:has(.pin-check__input:checked) .pin-check__box {
-    background: $color-text-primary;
-    border-color: $color-text-primary;
-}
-
-.btn {
-    padding: 9px 20px;
-    border-radius: $radius-sm;
-    font-family: $font-body;
-    font-size: $font-size-sm;
-    font-weight: $font-weight-semibold;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-
-    &--primary {
-        background: $color-text-primary;
-        color: $color-surface;
-
-        &:hover {
-            background: #333;
-        }
-    }
-
-    &--ghost {
-        background: transparent;
         color: $color-text-secondary;
-        border-color: $color-border-card;
+        cursor: pointer;
+        user-select: none;
 
-        &:hover {
+        &__input {
+            display: none;
+        }
+
+        &__box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid $color-border-card;
+            border-radius: 4px;
             background: $color-bg;
-            color: $color-text-primary;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s;
         }
     }
-}
+
+    .pin-check:has(.pin-check__input:checked) .pin-check__box {
+        background: $color-text-primary;
+        border-color: $color-text-primary;
+    }
+
+    .btn {
+        padding: 9px 20px;
+        border-radius: $radius-sm;
+        font-family: $font-body;
+        font-size: $font-size-sm;
+        font-weight: $font-weight-semibold;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+        &--primary {
+            background: $color-text-primary;
+            color: $color-surface;
+
+            &:hover {
+                background: #333;
+            }
+        }
+
+        &--ghost {
+            background: transparent;
+            color: $color-text-secondary;
+            border-color: $color-border-card;
+
+            &:hover {
+                background: $color-bg;
+                color: $color-text-primary;
+            }
+        }
+    }
 </style>

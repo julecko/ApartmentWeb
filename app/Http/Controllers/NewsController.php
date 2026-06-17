@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Log;
 
 class NewsController extends Controller
 {
@@ -32,24 +33,9 @@ class NewsController extends Controller
     }
 
     /**
-     * Admin page — same data, different view.
-     */
-    public function adminIndex(): Response
-    {
-        $items = NewsItem::with('attachments')
-            ->orderByDesc('pinned')
-            ->orderByDesc('date')
-            ->get();
-
-        return Inertia::render('AdminNews', [
-            'items' => NewsItemResource::collection($items),
-        ]);
-    }
-
-    /**
      * Store a new post with optional file attachments.
      */
-    public function store(StoreNewsItemRequest $request): JsonResponse
+    public function store(StoreNewsItemRequest $request)
     {
         $item = DB::transaction(function () use ($request): NewsItem {
             $item = NewsItem::create([
@@ -69,17 +55,18 @@ class NewsController extends Controller
             return $item->load('attachments');
         });
 
-        return (new NewsItemResource($item))
-            ->response()
-            ->setStatusCode(201);
+        return redirect()
+            ->route('admin.index')
+            ->with('success', 'Created');
     }
 
     /**
      * Update an existing post.
      * Supports adding new files and deleting existing ones in one request.
      */
-    public function update(UpdateNewsItemRequest $request, NewsItem $newsItem): JsonResponse
+    public function update(UpdateNewsItemRequest $request, NewsItem $newsItem)
     {
+        sleep(3);
         DB::transaction(function () use ($request, $newsItem): void {
             $newsItem->update([
                 'badge'      => $request->badge      ?? $newsItem->badge,
@@ -96,8 +83,9 @@ class NewsController extends Controller
             ]);
 
             // Delete requested attachments
-            if ($request->filled('deleteAttachmentIds')) {
-                $toDelete = NewsAttachment::whereIn('id', $request->deleteAttachmentIds)
+            $ids = $request->input('deleteAttachmentIds', []);
+            if (!empty($ids)) {
+                $toDelete = NewsAttachment::whereIn('id', $ids)
                     ->where('news_item_id', $newsItem->id)
                     ->get();
 
@@ -111,25 +99,27 @@ class NewsController extends Controller
             $this->storeAttachments($request->file('attachments', []), $newsItem);
         });
 
-        return (new NewsItemResource($newsItem->fresh('attachments')))
-            ->response();
+        return redirect()
+            ->back()
+            ->with('success', 'Updated');
     }
 
     /**
      * Toggle pinned state.
      */
-    public function togglePin(NewsItem $newsItem): JsonResponse
+    public function togglePin(NewsItem $newsItem)
     {
         $newsItem->update(['pinned' => ! $newsItem->pinned]);
 
-        return (new NewsItemResource($newsItem->load('attachments')))
-            ->response();
+        return redirect()
+            ->back()
+            ->with('success', 'Updated');
     }
 
     /**
      * Delete a post and all its stored attachment files.
      */
-    public function destroy(NewsItem $newsItem): JsonResponse
+    public function destroy(NewsItem $newsItem)
     {
         DB::transaction(function () use ($newsItem): void {
             foreach ($newsItem->attachments as $attachment) {
@@ -138,20 +128,9 @@ class NewsController extends Controller
             $newsItem->delete(); // attachments cascade via DB
         });
 
-        return response()->json(null, 204);
-    }
-
-    /**
-     * Delete a single attachment from a post.
-     */
-    public function destroyAttachment(NewsItem $newsItem, NewsAttachment $newsAttachment): JsonResponse
-    {
-        abort_if($newsAttachment->news_item_id !== $newsItem->id, 404);
-
-        Storage::disk('public')->delete($newsAttachment->path);
-        $newsAttachment->delete();
-
-        return response()->json(null, 204);
+        return redirect()
+            ->back()
+            ->with('success', 'Deleted');
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
