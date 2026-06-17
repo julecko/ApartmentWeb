@@ -31,10 +31,9 @@ class AdminController extends Controller
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $seconds = RateLimiter::availableIn($key);
 
-            return response()->json([
-                'success' => false,
-                'message' => "Too many login attempts. Please try again in {$seconds} seconds.",
-            ], 429);
+            return back()->withErrors([
+                'username' => "Too many attempts. Try again in {$seconds}s.",
+            ]);
         }
 
         $request->validate([
@@ -47,10 +46,9 @@ class AdminController extends Controller
         if (!$admin || !Hash::check($request->input('password'), $admin->password)) {
             RateLimiter::hit($key, 60);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid credentials.',
-            ], 401);
+            return back()->withErrors([
+                'username' => 'Invalid credentials.',
+            ]);
         }
 
         RateLimiter::clear($key);
