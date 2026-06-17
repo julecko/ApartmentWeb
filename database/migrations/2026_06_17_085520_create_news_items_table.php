@@ -14,8 +14,8 @@ return new class extends Migration
             $table->date('date');
             $table->string('title_sk');
             $table->string('title_en');
-            $table->string('summary_sk');
-            $table->string('summary_en');
+            $table->string('summary_sk')->nullable();
+            $table->string('summary_en')->nullable();
             $table->text('content_sk')->nullable();
             $table->text('content_en')->nullable();
             $table->boolean('pinned')->default(false);
